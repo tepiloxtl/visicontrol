@@ -35,8 +35,13 @@ class Button:
 class MouseRel:
     def __init__(self, x, y, w, h, label):
         self.rect = pygame.Rect(x, y, w, h)
+        self.w = w
+        self.h = h
         self.reticle = pygame.Rect(self.rect.centerx, self.rect.centery, 5, 5)
         self.label = label
+        self.mouse_x = 0
+        self.mouse_y = 0
+        self.no_update = 0
 
         self.bg_color = (30,30,30)
         self.reticle_color = (255,30,30)
@@ -45,25 +50,22 @@ class MouseRel:
         self.font = pygame.font.SysFont("Arial", 16)
     
     def update(self, update):
-        # print(update.value)
-        # REL_Y = code 01, up is negative
-        # REL_X = code 00, left is negative
-        if update.code == 1:
-            self.reticle = pygame.Rect(self.rect.centerx, self.rect.centery + (update.value * 10), 5, 5)
-        elif update.code == 0:
-            self.reticle = pygame.Rect(self.rect.centerx + (update.value * 10), self.rect.centery, 5, 5)
+        if update == {0:0,1:0}:
+            self.no_update += 1
+            if self.no_update > 240:
+                # print("reset")
+                self.no_update = 0
+                self.mouse_x = 0
+                self.mouse_y = 0
+        self.mouse_x = max(self.w * -0.5, min(update[0], self.w * 0.5)) if update[0] != 0 else self.mouse_x
+        self.mouse_y = max(self.h * -0.5, min(update[1], self.h * 0.5)) if update[1] != 0 else self.mouse_y
+        # The reticle itself is not "centered", need to figure something out here
+        self.reticle = pygame.Rect(self.rect.centerx + self.mouse_x, self.rect.centery + self.mouse_y, 5, 5)
     
     def draw(self, screen):
-        # current_color = self.active_color if self.is_pressed else self.bg_color
-
         pygame.draw.rect(screen, self.bg_color, self.rect)
         pygame.draw.rect(screen, self.border_color, self.rect, 2)
         pygame.draw.rect(screen, self.reticle_color, self.reticle)
-
-        # label_surf = self.font.render(self.label, True, self.text_color)
-        # text_x = self.rect.centerx - (label_surf.get_width() // 2)
-        # text_y = self.rect.centery - (label_surf.get_height() // 2)
-        # screen.blit(label_surf, (text_x, text_y))
 
 async def print_events(type, device, queue):
     async for event in device.async_read_loop():
@@ -80,7 +82,7 @@ devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
 for device in devices:
     print(device.path, device.name, device.phys)
 
-kbd = evdev.InputDevice('/dev/input/event6')
+kbd = evdev.InputDevice('/dev/input/event5')
 mouse = evdev.InputDevice('/dev/input/event2')
 
 
@@ -109,7 +111,7 @@ async def pygame_main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-        mouse_updates = {}
+        mouse_updates = {0: 0, 1: 0}
         try:
             while True:
             # get_nowait() checks the queue without blocking the game loop
@@ -125,13 +127,11 @@ async def pygame_main():
                 elif event[0] == "mouse":
                     # print(evdev.categorize(event[1]))
                     # print(event[1])
-                    mouse_updates[event[1].code] = event[1]
+                    mouse_updates[event[1].code] += event[1].value
             
         except asyncio.QueueEmpty:
             pass
-
-        for code, event in mouse_updates.items():
-            elements["MouseXY"].update(event)
+        elements["MouseXY"].update(mouse_updates)
 
         screen.fill("purple")
 
