@@ -1,6 +1,19 @@
 import evdev
 import pygame
 import asyncio
+from dataclasses import dataclass
+
+@dataclass
+class Device:
+    name: str
+    type: str
+    obj: evdev.InputDevice
+
+@dataclass
+class Event:
+    name: str
+    type: str
+    data: evdev.events.InputEvent
 
 class Button:
     def __init__(self, x, y, w, h, label):
@@ -67,23 +80,22 @@ class MouseRel:
         pygame.draw.rect(screen, self.border_color, self.rect, 2)
         pygame.draw.rect(screen, self.reticle_color, self.reticle)
 
-async def print_events(type, device, queue):
+async def print_events(type, name, device, queue):
     async for event in device.async_read_loop():
         if event.type == evdev.ecodes.EV_KEY:
             # print(evdev.categorize(event))
             # print(event)
-            await queue.put([type, event])
+            await queue.put(Event(name, type, event))
         elif event.type == evdev.ecodes.EV_REL:
             # print(str(evdev.categorize(event)) + str(event.value))
-            await queue.put([type, event])
+            await queue.put(Event(name, type, event))
         
 
-devices = [evdev.InputDevice(path) for path in evdev.list_devices()]
-for device in devices:
+alldevices = [evdev.InputDevice(path) for path in evdev.list_devices()]
+for device in alldevices:
     print(device.path, device.name, device.phys)
 
-kbd = evdev.InputDevice('/dev/input/event5')
-mouse = evdev.InputDevice('/dev/input/event2')
+devices = [Device("kbd0", "kbd", evdev.InputDevice('/dev/input/event5')), Device("mouse0", "mouse", evdev.InputDevice('/dev/input/event2'))]
 
 
 async def pygame_main():
@@ -104,8 +116,10 @@ async def pygame_main():
     }
 
     # bg_task = asyncio.create_task(print_events("mouse", mouse, event_queue))
-    for task in ["kbd", kbd], ["mouse", mouse]:
-        asyncio.create_task(print_events(task[0], task[1], event_queue))
+    # for task in ["kbd", kbd], ["mouse", mouse]:
+    #     asyncio.create_task(print_events(task[0], task[1], event_queue))
+    for device in devices:
+        asyncio.create_task(print_events(device.type, device.name, device.obj, event_queue))
 
     while running:
         for event in pygame.event.get():
@@ -117,17 +131,19 @@ async def pygame_main():
             # get_nowait() checks the queue without blocking the game loop
             # If the queue is empty, it raises asyncio.QueueEmpty
                 event = event_queue.get_nowait()
-                if event[0] == "kbd":
-                    print(evdev.ecodes.KEY[event[1].code] + ": " + str(event[1]))
+                if event.type == "kbd":
+                    print(evdev.ecodes.KEY[event.data.code] + ": " + str(event.data))
                     # print(str(evdev.categorize(event)) + " " + str(event.value))
                     try:
-                        elements[evdev.ecodes.KEY[event[1].code]].update(event[1])
+                        elements[evdev.ecodes.KEY[event.data.code]].update(event.data)
                     except:
-                        print("No button " + evdev.ecodes.KEY[event[1].code])
-                elif event[0] == "mouse":
+                        print("No button " + evdev.ecodes.KEY[event.data.code])
+                elif event.type == "mouse":
                     # print(evdev.categorize(event[1]))
-                    # print(event[1])
-                    mouse_updates[event[1].code] += event[1].value
+                    print(evdev.categorize(event.data))
+                    # print(evdev.ecodes.MSC[event.data.code])
+                    if event.data.code == 0 or event.data.code == 1:
+                        mouse_updates[event.data.code] += event.data.value
             
         except asyncio.QueueEmpty:
             pass
