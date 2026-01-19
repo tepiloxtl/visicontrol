@@ -208,7 +208,10 @@ async def pygame_main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-        mouse_updates = {0: 0, 1: 0}
+        mouse_updates = {}
+        for device in devices:
+            if device.type == "mouse":
+                mouse_updates[device.name] = {0: 0, 1: 0}
         # =======IMPORTANT=======
         # This shit needs some massive overhaul
         # Keyboard part is decent I guess
@@ -224,7 +227,7 @@ async def pygame_main():
             # get_nowait() checks the queue without blocking the game loop
             # If the queue is empty, it raises asyncio.QueueEmpty
                 event = event_queue.get_nowait()
-                print(event.data)
+                # print(event.data)
                 if event.data.type == 1:
                     try:
                         raw_name = key_lookup[event.data.code]
@@ -235,7 +238,7 @@ async def pygame_main():
                         pass
                 elif event.data.type == 2:
                     if event.data.code == 0 or event.data.code == 1:
-                        mouse_updates[event.data.code] += event.data.value
+                        mouse_updates[device.name][event.data.code] += event.data.value
                     else:
                         try:
                             raw_name = evdev.ecodes.REL[event.data.code]
@@ -247,13 +250,10 @@ async def pygame_main():
             
         except asyncio.QueueEmpty:
             pass
-        try:
-            for action in input_map[(event.name, "MouseXY")]:
-                elements[action].update(mouse_updates)
-        except:
-            # print("No MouseRel " + evdev.name)
-            pass
-        # elements[("mouse0", "MouseXY")].update(mouse_updates)
+        # print(mouse_updates)
+        for device in mouse_updates:
+            for element in input_map[(device, "MouseXY")]:
+                elements[element].update(mouse_updates[device])
 
         screen.fill("purple")
 
