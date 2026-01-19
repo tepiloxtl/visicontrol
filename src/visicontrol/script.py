@@ -159,14 +159,36 @@ async def print_events(type, name, device, queue):
         await asyncio.Future()
     except asyncio.CancelledError:
         loop.remove_reader(fd)
-        
+
+def load_layout(layout, config):
+    devices = []
+    elements = {}
+    input_map = {}
+    if layout["window_size"]:
+        config["window_size"] = layout["window_size"]
+    for device_name, device in layout["devices"].items():
+        devices.append(Device(device_name, device["type"], evdev.InputDevice(device["input_device"])))
+        for element_name, element in device["inputs"].items():
+            if element["type"] == "Button":
+                elements[element_name] = Button(element["position"]["x"], element["position"]["y"], element["position"]["w"], element["position"]["h"], element["label"])
+            elif element["type"] == "MouseRel":
+                elements[element_name] = MouseRel(element["position"]["x"], element["position"]["y"], element["position"]["w"], element["position"]["h"], element["reticle_size"])
+            elif element["type"] == "MouseScrollBtn":
+                elements[element_name] = MouseScrollBtn(element["position"]["x"], element["position"]["y"], element["position"]["w"], element["position"]["h"], element["direction"], element["label"])
+            if (device_name, element["keycode"]) in input_map:
+                input_map[(device_name, element["keycode"])].append(element_name)
+            else:
+                input_map[(device_name, element["keycode"])] = [element_name]
+    return devices, elements, input_map
+
 
 alldevices = [evdev.InputDevice(path) for path in evdev.list_devices()]
 for device in alldevices:
     print(device.path, device.name, device.phys)
 
-devices = [Device("kbd0", "kbd", evdev.InputDevice('/dev/input/event6')), Device("mouse0", "mouse", evdev.InputDevice('/dev/input/event2'))]
-key_lookup = evdev.ecodes.bytype[evdev.ecodes.EV_KEY]
+with open("../../layout.json5", "r") as file:
+    layout = json5.load(file)
+print(layout)
 
 
 async def pygame_main():
@@ -176,43 +198,19 @@ async def pygame_main():
     print(f"SDL Version: {pygame.get_sdl_version()}")
     print(f"Video Driver: {pygame.display.get_driver()}")
     print(f"------------------")
-    screen = pygame.display.set_mode((1280, 720))
-    clock = pygame.time.Clock()
+
+    config = {"window_size": [1280, 720]}
+    devices, elements, input_map = load_layout(layout, config)
+    print(devices)
+    print(elements)
+    print(input_map)
+
+    key_lookup = evdev.ecodes.bytype[evdev.ecodes.EV_KEY]
+
+    screen = pygame.display.set_mode(config["window_size"])
     target_frame_duration = 1.0 / 60.0
     running = True
     event_queue = asyncio.Queue()
-
-    elements = {
-        "KEY_Q":    Button(50, 50, 100, 100, "Q"),
-        # "KEY_QQ":    Button(50, 150, 100, 100, "Q"),
-        "KEY_W":    Button(150, 50, 100, 100, "W"),
-        "KEY_E":    Button(250, 50, 100, 100, "E"),
-        "KEY_R":    Button(350, 50, 100, 100, "R"),
-        "KEY_T":    Button(450, 50, 100, 100, "T"),
-        "KEY_Y":    Button(550, 50, 100, 100, "Y"),
-        "MouseXY":  MouseRel(800, 50, 200, 200, 10),
-        "MouseL":   Button(800, 250, 100, 100, "LMB"),
-        "MouseR":   Button(900, 250, 100, 100, "RMB"),
-        "ScrollUp": MouseScrollBtn(800, 350, 100, 100, 1, "Scroll UP"),
-        "ScrollDown": MouseScrollBtn(900, 350, 100, 100, -1, "Scroll DOWN"),
-        "ScrollLeft": MouseScrollBtn(800, 450, 100, 100, -1, "Scroll LEFT"),
-        "ScrollRight": MouseScrollBtn(900, 450, 100, 100, 1, "Scroll RIGHT")
-
-    }
-
-    input_map = {
-        ("kbd0", "KEY_Q"): ["KEY_Q", "KEY_QQ"],
-        ("kbd0", "KEY_W"): ["KEY_W"],
-        ("kbd0", "KEY_E"): ["KEY_E"],
-        ("kbd0", "KEY_R"): ["KEY_R"],
-        ("kbd0", "KEY_T"): ["KEY_T"],
-        ("kbd0", "KEY_Y"): ["KEY_Y"],
-        ("mouse0", "MouseXY"): ["MouseXY"],
-        ("mouse0", "BTN_LEFT"): ["MouseL"],
-        ("mouse0", "BTN_RIGHT"): ["MouseR"],
-        ("mouse0", "REL_WHEEL"): ["ScrollUp", "ScrollDown"],
-        ("mouse0", "REL_HWHEEL"): ["ScrollLeft", "ScrollRight"],
-    }
 
     tasks = set()
     for device in devices:
@@ -229,16 +227,8 @@ async def pygame_main():
         for device in devices:
             if device.type == "mouse":
                 mouse_updates[device.name] = {0: 0, 1: 0}
-        # =======IMPORTANT=======
-        # This shit needs some massive overhaul
-        # Keyboard part is decent I guess
-        # Mouse is shit: the rel position is hardcoded to one object mouse_updates
-        # Then in general handling of all REL type events could be done better probably idk?
         # idk if theres an another kind of device other than a mouse that would benefit from MouseScrollBtn
-        # Also clean up all the prints
         # Still needs special case for MouseXY, its REL event happens MUCH more frequently than once a frame and it bogs down the visuals
-        # Bababababababababa
-        # =======================
         try:
             while True:
             # get_nowait() checks the queue without blocking the game loop
@@ -286,7 +276,6 @@ async def pygame_main():
         else:
             await asyncio.sleep(0)
 
-    # bg_task.cancel() # Stop the background task
     pygame.quit()
 
 if __name__ == "__main__":

@@ -1,0 +1,275 @@
+{
+    name: "My new layout",
+    window_size: [500,300],
+    devices: {
+        kbd0: {
+            type: "kbd",
+            input_device: "/dev/input/event6",
+            inputs: {
+                KEY_ESC: {
+                    type: "Button",
+                    keycode: "KEY_ESC",
+                    label: "ESC",
+                    position: {
+                        x: 10,
+                        y: 10,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_F1: {
+                    type: "Button",
+                    keycode: "KEY_F1",
+                    label: "F1",
+                    position: {
+                        x: 60,
+                        y: 10,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_F2: {
+                    type: "Button",
+                    keycode: "KEY_F2",
+                    label: "F2",
+                    position: {
+                        x: 110,
+                        y: 10,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_F3: {
+                    type: "Button",
+                    keycode: "KEY_F3",
+                    label: "F3",
+                    position: {
+                        x: 160,
+                        y: 10,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_Q: {
+                    type: "Button",
+                    keycode: "KEY_Q",
+                    label: "Q",
+                    position: {
+                        x: 10,
+                        y: 60,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_W: {
+                    type: "Button",
+                    keycode: "KEY_W",
+                    label: "W",
+                    position: {
+                        x: 60,
+                        y: 60,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_E: {
+                    type: "Button",
+                    keycode: "KEY_E",
+                    label: "E",
+                    position: {
+                        x: 110,
+                        y: 60,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_R: {
+                    type: "Button",
+                    keycode: "KEY_R",
+                    label: "R",
+                    position: {
+                        x: 160,
+                        y: 60,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_A: {
+                    type: "Button",
+                    keycode: "KEY_A",
+                    label: "A",
+                    position: {
+                        x: 10,
+                        y: 110,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_S: {
+                    type: "Button",
+                    keycode: "KEY_S",
+                    label: "S",
+                    position: {
+                        x: 60,
+                        y: 110,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_D: {
+                    type: "Button",
+                    keycode: "KEY_D",
+                    label: "D",
+                    position: {
+                        x: 110,
+                        y: 110,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_F: {
+                    type: "Button",
+                    keycode: "KEY_F",
+                    label: "F",
+                    position: {
+                        x: 160,
+                        y: 110,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_Z: {
+                    type: "Button",
+                    keycode: "KEY_Z",
+                    label: "Z",
+                    position: {
+                        x: 10,
+                        y: 160,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_X: {
+                    type: "Button",
+                    keycode: "KEY_X",
+                    label: "X",
+                    position: {
+                        x: 60,
+                        y: 160,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_C: {
+                    type: "Button",
+                    keycode: "KEY_C",
+                    label: "C",
+                    position: {
+                        x: 110,
+                        y: 160,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                KEY_LEFTCTRL: {
+                    type: "Button",
+                    keycode: "KEY_LEFTCTRL",
+                    label: "Ctrl",
+                    position: {
+                        x: 10,
+                        y: 210,
+                        w: 75,
+                        h: 50
+                    }
+                },
+                KEY_SPACE: {
+                    type: "Button",
+                    keycode: "KEY_SPACE",
+                    label: "Space",
+                    position: {
+                        x: 85,
+                        y: 210,
+                        w: 150,
+                        h: 50
+                    }
+                },
+            }
+        },
+        mouse0: {
+            type: "mouse",
+            input_device: "/dev/input/event2",
+            inputs: {
+                MouseXY: {
+                    type: "MouseRel",
+                    keycode: "MouseXY",
+                    label: "",
+                    reticle_size: 5,
+                    position: {
+                        x: 260,
+                        y: 10,
+                        w: 100,
+                        h: 100
+                    }
+                },
+                ScrollUp: {
+                    type: "MouseScrollBtn",
+                    keycode: "REL_WHEEL",
+                    direction: 1,
+                    label: "WhUp",
+                    position: {
+                        x: 360,
+                        y: 10,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                ScrollDown: {
+                    type: "MouseScrollBtn",
+                    keycode: "REL_WHEEL",
+                    direction: -1,
+                    label: "WhDn",
+                    position: {
+                        x: 360,
+                        y: 60,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                MouseL: {
+                    type: "Button",
+                    keycode: "BTN_LEFT",
+                    label: "LMB",
+                    position: {
+                        x: 260,
+                        y: 110,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                MouseM: {
+                    type: "Button",
+                    keycode: "BTN_MIDDLE",
+                    label: "MMB",
+                    position: {
+                        x: 310,
+                        y: 110,
+                        w: 50,
+                        h: 50
+                    }
+                },
+                MouseR: {
+                    type: "Button",
+                    keycode: "BTN_RIGHT",
+                    label: "RMB",
+                    position: {
+                        x: 360,
+                        y: 110,
+                        w: 50,
+                        h: 50
+                    }
+                },
+            }
+        }
+    }
+}
+//BTN_MIDDLE
