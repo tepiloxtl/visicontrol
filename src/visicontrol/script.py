@@ -94,30 +94,46 @@ class MouseScrollBtn:
         self.direction = direction
         self.label = label
         self.is_pressed = False
-        self.no_update = 0
+        self.presses = 0
+        self.cooldown = 20
+        self.timer = 0
 
         self.bg_color = (30,30,30)
         self.active_color = (255,30,30)
         self.border_color = (200,200,200)
         self.text_color = (255,255,255)
         self.font = pygame.font.SysFont("Arial", 16)
+        self.display_label = self.label
     
     def update(self, update):
         if self.direction == update.value:
             self.is_pressed = True
+            self.presses += 1
+            self.timer = self.cooldown
+            self.display_label = "{}\n{}".format(self.label, self.presses)
+            # self.display_label = str(self.presses)
     
     def draw(self, screen):
+        if self.timer:
+            self.timer -= 1
+            if self.timer == 0:
+                self.is_pressed = False
+                self.presses = 0
+                self.display_label = self.label
         current_color = self.active_color if self.is_pressed else self.bg_color
-        #current_color = self.bg_color
 
         pygame.draw.rect(screen, current_color, self.rect)
         pygame.draw.rect(screen, self.border_color, self.rect, 2)
 
-        label_surf = self.font.render(self.label, True, self.text_color)
-        text_x = self.rect.centerx - (label_surf.get_width() // 2)
-        text_y = self.rect.centery - (label_surf.get_height() // 2)
-        screen.blit(label_surf, (text_x, text_y))
-        self.is_pressed = False
+        lines = self.display_label.splitlines()
+        line_height = self.font.get_linesize()
+        total_height = len(lines) * line_height
+        current_y = self.rect.centery - (total_height // 2)
+        for line in lines:
+            label_surf = self.font.render(line, True, self.text_color)
+            text_x = self.rect.centerx - (label_surf.get_width() // 2)
+            screen.blit(label_surf, (text_x, current_y))
+            current_y += line_height
 
 async def print_events(type, name, device, queue):
     async for event in device.async_read_loop():
@@ -134,7 +150,7 @@ alldevices = [evdev.InputDevice(path) for path in evdev.list_devices()]
 for device in alldevices:
     print(device.path, device.name, device.phys)
 
-devices = [Device("kbd0", "kbd", evdev.InputDevice('/dev/input/event25')), Device("mouse0", "mouse", evdev.InputDevice('/dev/input/event23'))]
+devices = [Device("kbd0", "kbd", evdev.InputDevice('/dev/input/event6')), Device("mouse0", "mouse", evdev.InputDevice('/dev/input/event2'))]
 
 
 async def pygame_main():
@@ -192,6 +208,19 @@ async def pygame_main():
             if event.type == pygame.QUIT:
                 running = False
         mouse_updates = {0: 0, 1: 0}
+        # =======IMPORTANT=======
+        # This shit needs some massive overhaul
+        # Keyboard part is decent I guess
+        # Mouse is shit: the rel position is hardcoded to one object mouse_updates
+        # Then in general handling of all REL type events could be done better probably idk?
+        # idk if theres an another kind of device other than a mouse that would benefit from MouseScrollBtn
+        # But its only reachable from inside mouse device type I guess?? I dunno, I ceased to think tonight
+        # Also clean up all the prints
+        # Also between kbd and mouse theres like one snipped of code repeated 3 times, just with different event type
+        # Just pull the type from event.data.type and handle it like that?
+        # Still needs special case for MouseXY, its REL event happens MUCH more frequently than once a frame and it bogs down the visuals
+        # Bababababababababa
+        # =======================
         try:
             while True:
             # get_nowait() checks the queue without blocking the game loop
@@ -215,7 +244,7 @@ async def pygame_main():
                                 for action in input_map[(event.name, raw_name[0] if isinstance(raw_name, (list, tuple)) else raw_name)]:
                                     elements[action].update(event.data)
                             except:
-                                print("No button " + str(raw_name))
+                                # print("No button " + str(raw_name))
                                 pass
                     else:
                         try:
