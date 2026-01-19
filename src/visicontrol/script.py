@@ -1,7 +1,11 @@
 import evdev
 import pygame
 import asyncio
+import json5
+import os
 from dataclasses import dataclass
+
+os.environ["SDL_VIDEODRIVER"] = "wayland,x11"
 
 @dataclass
 class Device:
@@ -46,11 +50,12 @@ class Button:
         screen.blit(label_surf, (text_x, text_y))
 
 class MouseRel:
-    def __init__(self, x, y, w, h, label):
+    def __init__(self, x, y, w, h, reticle_size = 5, label = ""):
         self.rect = pygame.Rect(x, y, w, h)
         self.w = w
         self.h = h
-        self.reticle = pygame.Rect(self.rect.centerx, self.rect.centery, 5, 5)
+        self.reticle_size = reticle_size
+        self.reticle = pygame.Rect(self.rect.centerx, self.rect.centery, self.reticle_size, self.reticle_size)
         self.label = label
         self.mouse_x = 0
         self.mouse_y = 0
@@ -73,12 +78,46 @@ class MouseRel:
         self.mouse_x = max(self.w * -0.5, min(update[0], self.w * 0.5)) if update[0] != 0 else self.mouse_x
         self.mouse_y = max(self.h * -0.5, min(update[1], self.h * 0.5)) if update[1] != 0 else self.mouse_y
         # The reticle itself is not "centered", need to figure something out here
-        self.reticle = pygame.Rect(self.rect.centerx + self.mouse_x, self.rect.centery + self.mouse_y, 5, 5)
+        # self.reticle = pygame.Rect(self.rect.centerx + self.mouse_x, self.rect.centery + self.mouse_y, self.reticle_size, self.reticle_size)
+        self.reticle.center = (self.rect.centerx + self.mouse_x, self.rect.centery + self.mouse_y)
     
     def draw(self, screen):
         pygame.draw.rect(screen, self.bg_color, self.rect)
         pygame.draw.rect(screen, self.border_color, self.rect, 2)
         pygame.draw.rect(screen, self.reticle_color, self.reticle)
+
+class MouseScrollBtn:
+    def __init__(self, x, y, w, h, direction, label = ""):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.w = w
+        self.h = h
+        self.direction = direction
+        self.label = label
+        self.is_pressed = False
+        self.no_update = 0
+
+        self.bg_color = (30,30,30)
+        self.active_color = (255,30,30)
+        self.border_color = (200,200,200)
+        self.text_color = (255,255,255)
+        self.font = pygame.font.SysFont("Arial", 16)
+    
+    def update(self, update):
+        if self.direction == update.value:
+            self.is_pressed = True
+    
+    def draw(self, screen):
+        current_color = self.active_color if self.is_pressed else self.bg_color
+        #current_color = self.bg_color
+
+        pygame.draw.rect(screen, current_color, self.rect)
+        pygame.draw.rect(screen, self.border_color, self.rect, 2)
+
+        label_surf = self.font.render(self.label, True, self.text_color)
+        text_x = self.rect.centerx - (label_surf.get_width() // 2)
+        text_y = self.rect.centery - (label_surf.get_height() // 2)
+        screen.blit(label_surf, (text_x, text_y))
+        self.is_pressed = False
 
 async def print_events(type, name, device, queue):
     async for event in device.async_read_loop():
@@ -95,24 +134,51 @@ alldevices = [evdev.InputDevice(path) for path in evdev.list_devices()]
 for device in alldevices:
     print(device.path, device.name, device.phys)
 
-devices = [Device("kbd0", "kbd", evdev.InputDevice('/dev/input/event5')), Device("mouse0", "mouse", evdev.InputDevice('/dev/input/event2'))]
+devices = [Device("kbd0", "kbd", evdev.InputDevice('/dev/input/event25')), Device("mouse0", "mouse", evdev.InputDevice('/dev/input/event23'))]
 
 
 async def pygame_main():
     pygame.init()
+    print(f"--- DEBUG INFO ---")
+    print(f"Pygame Version: {pygame.version.ver}")
+    print(f"SDL Version: {pygame.get_sdl_version()}")
+    print(f"Video Driver: {pygame.display.get_driver()}")
+    print(f"------------------")
     screen = pygame.display.set_mode((1280, 720))
     clock = pygame.time.Clock()
     running = True
     event_queue = asyncio.Queue()
 
     elements = {
-        "KEY_Q":     Button(50, 50, 100, 100, "Q"),
-        "KEY_W":     Button(150, 50, 100, 100, "W"),
-        "KEY_E":     Button(250, 50, 100, 100, "E"),
-        "KEY_R":     Button(350, 50, 100, 100, "R"),
-        "KEY_T":     Button(450, 50, 100, 100, "T"),
-        "KEY_Y":     Button(550, 50, 100, 100, "Y"),
-        "MouseXY":     MouseRel(800, 50, 100, 100, "")
+        "KEY_Q":    Button(50, 50, 100, 100, "Q"),
+        # "KEY_QQ":    Button(50, 150, 100, 100, "Q"),
+        "KEY_W":    Button(150, 50, 100, 100, "W"),
+        "KEY_E":    Button(250, 50, 100, 100, "E"),
+        "KEY_R":    Button(350, 50, 100, 100, "R"),
+        "KEY_T":    Button(450, 50, 100, 100, "T"),
+        "KEY_Y":    Button(550, 50, 100, 100, "Y"),
+        "MouseXY":  MouseRel(800, 50, 200, 200, 10),
+        "MouseL":   Button(800, 250, 100, 100, "LMB"),
+        "MouseR":   Button(900, 250, 100, 100, "RMB"),
+        "ScrollUp": MouseScrollBtn(800, 350, 100, 100, 1, "Scroll UP"),
+        "ScrollDown": MouseScrollBtn(900, 350, 100, 100, -1, "Scroll DOWN"),
+        "ScrollLeft": MouseScrollBtn(800, 450, 100, 100, -1, "Scroll LEFT"),
+        "ScrollRight": MouseScrollBtn(900, 450, 100, 100, 1, "Scroll RIGHT")
+
+    }
+
+    input_map = {
+        ("kbd0", "KEY_Q"): ["KEY_Q", "KEY_QQ"],
+        ("kbd0", "KEY_W"): ["KEY_W"],
+        ("kbd0", "KEY_E"): ["KEY_E"],
+        ("kbd0", "KEY_R"): ["KEY_R"],
+        ("kbd0", "KEY_T"): ["KEY_T"],
+        ("kbd0", "KEY_Y"): ["KEY_Y"],
+        ("mouse0", "MouseXY"): ["MouseXY"],
+        ("mouse0", "BTN_LEFT"): ["MouseL"],
+        ("mouse0", "BTN_RIGHT"): ["MouseR"],
+        ("mouse0", "REL_WHEEL"): ["ScrollUp", "ScrollDown"],
+        ("mouse0", "REL_HWHEEL"): ["ScrollLeft", "ScrollRight"],
     }
 
     # bg_task = asyncio.create_task(print_events("mouse", mouse, event_queue))
@@ -135,19 +201,40 @@ async def pygame_main():
                     print(evdev.ecodes.KEY[event.data.code] + ": " + str(event.data))
                     # print(str(evdev.categorize(event)) + " " + str(event.value))
                     try:
-                        elements[evdev.ecodes.KEY[event.data.code]].update(event.data)
+                        for action in input_map[(event.name, evdev.ecodes.KEY[event.data.code])]:
+                            elements[action].update(event.data)
                     except:
                         print("No button " + evdev.ecodes.KEY[event.data.code])
                 elif event.type == "mouse":
-                    # print(evdev.categorize(event[1]))
-                    print(evdev.categorize(event.data))
-                    # print(evdev.ecodes.MSC[event.data.code])
-                    if event.data.code == 0 or event.data.code == 1:
-                        mouse_updates[event.data.code] += event.data.value
+                    if event.data.type == 2:
+                        if event.data.code == 0 or event.data.code == 1:
+                            mouse_updates[event.data.code] += event.data.value
+                        else:
+                            try:
+                                raw_name = evdev.ecodes.REL[event.data.code]
+                                for action in input_map[(event.name, raw_name[0] if isinstance(raw_name, (list, tuple)) else raw_name)]:
+                                    elements[action].update(event.data)
+                            except:
+                                print("No button " + str(raw_name))
+                                pass
+                    else:
+                        try:
+                            raw_name = evdev.ecodes.BTN[event.data.code]
+                            for action in input_map[(event.name, raw_name[0] if isinstance(raw_name, (list, tuple)) else raw_name)]:
+                                elements[action].update(event.data)
+                        except:
+                            # print("No button " + str(raw_name))
+                            pass
             
         except asyncio.QueueEmpty:
             pass
-        elements["MouseXY"].update(mouse_updates)
+        try:
+            for action in input_map[(event.name, "MouseXY")]:
+                elements[action].update(mouse_updates)
+        except:
+            # print("No MouseRel " + evdev.name)
+            pass
+        # elements[("mouse0", "MouseXY")].update(mouse_updates)
 
         screen.fill("purple")
 

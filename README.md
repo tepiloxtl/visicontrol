@@ -12,7 +12,7 @@ Wayland input visualiser, intended to support keyboard, mouse and controller inp
 * ... and (possibly) more
 
 ## How to use it (abridged abridged)
-`pip install evdev pygame-ce` (preferably in venv)  
+`pip install evdev pygame-ce json5` (preferably in venv)  
 Evdev requires special permissions, your options are:  
 * Run as root
 * Add yourself to `input` group, reload session
