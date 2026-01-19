@@ -214,8 +214,11 @@ async def pygame_main():
         ("mouse0", "REL_HWHEEL"): ["ScrollLeft", "ScrollRight"],
     }
 
+    tasks = set()
     for device in devices:
-        asyncio.create_task(print_events(device.type, device.name, device.obj, event_queue))
+        task = asyncio.create_task(print_events(device.type, device.name, device.obj, event_queue))
+        tasks.add(task)
+        task.add_done_callback(tasks.discard)
 
     while running:
         loop_start = asyncio.get_running_loop().time()
