@@ -151,6 +151,7 @@ for device in alldevices:
     print(device.path, device.name, device.phys)
 
 devices = [Device("kbd0", "kbd", evdev.InputDevice('/dev/input/event6')), Device("mouse0", "mouse", evdev.InputDevice('/dev/input/event2'))]
+key_lookup = evdev.ecodes.bytype[evdev.ecodes.EV_KEY]
 
 
 async def pygame_main():
@@ -214,10 +215,7 @@ async def pygame_main():
         # Mouse is shit: the rel position is hardcoded to one object mouse_updates
         # Then in general handling of all REL type events could be done better probably idk?
         # idk if theres an another kind of device other than a mouse that would benefit from MouseScrollBtn
-        # But its only reachable from inside mouse device type I guess?? I dunno, I ceased to think tonight
         # Also clean up all the prints
-        # Also between kbd and mouse theres like one snipped of code repeated 3 times, just with different event type
-        # Just pull the type from event.data.type and handle it like that?
         # Still needs special case for MouseXY, its REL event happens MUCH more frequently than once a frame and it bogs down the visuals
         # Bababababababababa
         # =======================
@@ -226,29 +224,21 @@ async def pygame_main():
             # get_nowait() checks the queue without blocking the game loop
             # If the queue is empty, it raises asyncio.QueueEmpty
                 event = event_queue.get_nowait()
-                if event.type == "kbd":
-                    print(evdev.ecodes.KEY[event.data.code] + ": " + str(event.data))
-                    # print(str(evdev.categorize(event)) + " " + str(event.value))
+                print(event.data)
+                if event.data.type == 1:
                     try:
-                        for action in input_map[(event.name, evdev.ecodes.KEY[event.data.code])]:
+                        raw_name = key_lookup[event.data.code]
+                        for action in input_map[(event.name, raw_name[0] if isinstance(raw_name, (list, tuple)) else raw_name)]:
                             elements[action].update(event.data)
                     except:
-                        print("No button " + evdev.ecodes.KEY[event.data.code])
-                elif event.type == "mouse":
-                    if event.data.type == 2:
-                        if event.data.code == 0 or event.data.code == 1:
-                            mouse_updates[event.data.code] += event.data.value
-                        else:
-                            try:
-                                raw_name = evdev.ecodes.REL[event.data.code]
-                                for action in input_map[(event.name, raw_name[0] if isinstance(raw_name, (list, tuple)) else raw_name)]:
-                                    elements[action].update(event.data)
-                            except:
-                                # print("No button " + str(raw_name))
-                                pass
+                        print("No button " + str(raw_name))
+                        pass
+                elif event.data.type == 2:
+                    if event.data.code == 0 or event.data.code == 1:
+                        mouse_updates[event.data.code] += event.data.value
                     else:
                         try:
-                            raw_name = evdev.ecodes.BTN[event.data.code]
+                            raw_name = evdev.ecodes.REL[event.data.code]
                             for action in input_map[(event.name, raw_name[0] if isinstance(raw_name, (list, tuple)) else raw_name)]:
                                 elements[action].update(event.data)
                         except:
