@@ -3,9 +3,8 @@ import pygame
 import asyncio
 import json5
 import os
+import argparse
 from dataclasses import dataclass
-
-os.environ["SDL_VIDEODRIVER"] = "wayland,x11"
 
 @dataclass
 class Device:
@@ -186,12 +185,20 @@ alldevices = [evdev.InputDevice(path) for path in evdev.list_devices()]
 for device in alldevices:
     print(device.path, device.name, device.phys)
 
-with open("../../layout.json5", "r") as file:
-    layout = json5.load(file)
-print(layout)
-
 
 async def pygame_main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--no-force-wayland', action='store_true', help='Disable forcing Wayland compositor')
+    parser.add_argument('-c', '--config', type=str, help='Path to a JSON5 configuration file')
+    args = parser.parse_args()
+    if args.no_force_wayland == False:
+        os.environ["SDL_VIDEODRIVER"] = "wayland,x11"
+    layoutpath = "../../layout.json5"
+    if args.config:
+        layoutpath = args.config
+    with open(layoutpath, "r") as file:
+        layout = json5.load(file)
+    print(layout)
     pygame.init()
     print(f"--- DEBUG INFO ---")
     print(f"Pygame Version: {pygame.version.ver}")
