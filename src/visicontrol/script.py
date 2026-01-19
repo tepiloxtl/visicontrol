@@ -32,7 +32,6 @@ class Button:
         self.font = pygame.font.SysFont("Arial", 16)
     
     def update(self, update):
-        print(update.value)
         if update.value == 0:
             self.is_pressed = False
         else:
@@ -71,14 +70,11 @@ class MouseRel:
         if update == {0:0,1:0}:
             self.no_update += 1
             if self.no_update > 240:
-                # print("reset")
                 self.no_update = 0
                 self.mouse_x = 0
                 self.mouse_y = 0
         self.mouse_x = max(self.w * -0.5, min(update[0], self.w * 0.5)) if update[0] != 0 else self.mouse_x
         self.mouse_y = max(self.h * -0.5, min(update[1], self.h * 0.5)) if update[1] != 0 else self.mouse_y
-        # The reticle itself is not "centered", need to figure something out here
-        # self.reticle = pygame.Rect(self.rect.centerx + self.mouse_x, self.rect.centery + self.mouse_y, self.reticle_size, self.reticle_size)
         self.reticle.center = (self.rect.centerx + self.mouse_x, self.rect.centery + self.mouse_y)
     
     def draw(self, screen):
@@ -136,14 +132,33 @@ class MouseScrollBtn:
             current_y += line_height
 
 async def print_events(type, name, device, queue):
-    async for event in device.async_read_loop():
-        if event.type == evdev.ecodes.EV_KEY:
-            # print(evdev.categorize(event))
-            # print(event)
-            await queue.put(Event(name, type, event))
-        elif event.type == evdev.ecodes.EV_REL:
-            # print(str(evdev.categorize(event)) + str(event.value))
-            await queue.put(Event(name, type, event))
+    # Some ideas copied from the internet. I dont understand how async works, but #itworks
+    loop = asyncio.get_running_loop()
+    fd = device.fd
+    
+    # Pre-bind the put method to avoid attribute lookup costs in the hot path
+    put_nowait = queue.put_nowait
+    
+    def read_batch():
+        try:
+            # device.read() gets everything currently in the buffer
+            for event in device.read():
+                if event.type == evdev.ecodes.EV_SYN and event.code == evdev.ecodes.SYN_DROPPED:
+                    print(f"⚠ {name} BUFFER OVERFLOW!")
+                    continue
+                put_nowait(Event(name, type, event))
+                
+        except (BlockingIOError, OSError):
+            pass # Buffer empty or device read error
+
+    # Register the callback. This runs even while main loop is sleeping
+    loop.add_reader(fd, read_batch)
+
+    try:
+        # Keep this task alive forever
+        await asyncio.Future()
+    except asyncio.CancelledError:
+        loop.remove_reader(fd)
         
 
 alldevices = [evdev.InputDevice(path) for path in evdev.list_devices()]
@@ -163,6 +178,7 @@ async def pygame_main():
     print(f"------------------")
     screen = pygame.display.set_mode((1280, 720))
     clock = pygame.time.Clock()
+    target_frame_duration = 1.0 / 60.0
     running = True
     event_queue = asyncio.Queue()
 
@@ -198,13 +214,11 @@ async def pygame_main():
         ("mouse0", "REL_HWHEEL"): ["ScrollLeft", "ScrollRight"],
     }
 
-    # bg_task = asyncio.create_task(print_events("mouse", mouse, event_queue))
-    # for task in ["kbd", kbd], ["mouse", mouse]:
-    #     asyncio.create_task(print_events(task[0], task[1], event_queue))
     for device in devices:
         asyncio.create_task(print_events(device.type, device.name, device.obj, event_queue))
 
     while running:
+        loop_start = asyncio.get_running_loop().time()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -227,7 +241,6 @@ async def pygame_main():
             # get_nowait() checks the queue without blocking the game loop
             # If the queue is empty, it raises asyncio.QueueEmpty
                 event = event_queue.get_nowait()
-                # print(event.data)
                 if event.data.type == 1:
                     try:
                         raw_name = key_lookup[event.data.code]
@@ -261,8 +274,14 @@ async def pygame_main():
             element.draw(screen)
 
         pygame.display.flip()
-        clock.tick(60) 
-        await asyncio.sleep(0)
+        #This replaces clock.tick(60) cos its nonblocking and allow high-polling devices to work better?
+        elapsed = asyncio.get_running_loop().time() - loop_start
+        sleep_time = target_frame_duration - elapsed
+        
+        if sleep_time > 0:
+            await asyncio.sleep(sleep_time)
+        else:
+            await asyncio.sleep(0)
 
     # bg_task.cancel() # Stop the background task
     pygame.quit()
