@@ -4,6 +4,7 @@ import asyncio
 import json5
 import os
 import argparse
+import struct, errno
 from dataclasses import dataclass
 
 @dataclass
@@ -16,7 +17,13 @@ class Device:
 class Event:
     name: str
     type: str
-    data: evdev.events.InputEvent
+    data: EventData
+
+@dataclass
+class EventData:
+    type: int
+    code: int
+    value: int
 
 class Button:
     def __init__(self, x, y, w, h, label):
@@ -131,24 +138,46 @@ class MouseScrollBtn:
             current_y += line_height
 
 async def print_events(type, name, device, queue):
-    # Some ideas copied from the internet. I dont understand how async works, but #itworks
     loop = asyncio.get_running_loop()
     fd = device.fd
     
     # Pre-bind the put method to avoid attribute lookup costs in the hot path
     put_nowait = queue.put_nowait
-    
+    # https://stackoverflow.com/questions/5060710/format-of-dev-input-event
+    # https://docs.python.org/3/library/errno.html
     def read_batch():
-        try:
-            # device.read() gets everything currently in the buffer
-            for event in device.read():
-                if event.type == evdev.ecodes.EV_SYN and event.code == evdev.ecodes.SYN_DROPPED:
-                    print(f"⚠ {name} BUFFER OVERFLOW!")
+        while True:
+            try:
+                # Read a chunk of raw bytes (max 32 events at once)
+                data = os.read(fd, EVENT_SIZE * 32)
+            except OSError as e:
+                if e.errno == errno.EAGAIN or e.errno == errno.EWOULDBLOCK:
+                    break
+                else:
+                    print(f"Device error: {e}")
+                    break
+            
+            # If device disconnected or sent empty string
+            if not data:
+                break
+
+            for i in range(0, len(data), EVENT_SIZE):
+                chunk = data[i:i+EVENT_SIZE]
+                if len(chunk) < EVENT_SIZE:
+                    break
+                tv_sec, tv_usec, evtype, evcode, evvalue = struct.unpack(EVENT_FMT, chunk)
+
+                # Drop Detection
+                if evtype == 0 and evcode == 3: # EV_SYN, SYN_DROPPED
+                    print(f"{name} BUFFER OVERFLOW")
                     continue
-                put_nowait(Event(name, type, event))
-                
-        except (BlockingIOError, OSError):
-            pass # Buffer empty or device read error
+
+                try:
+                    # put_nowait((name, type, code, value))
+                    # Putting two dataclasses in here might still cause memory issues maybe? But this works without reenginering the entire thing
+                    put_nowait(Event(name, type, EventData(evtype, evcode, evvalue)))
+                except asyncio.QueueFull:
+                    pass
 
     # Register the callback. This runs even while main loop is sleeping
     loop.add_reader(fd, read_batch)
@@ -185,6 +214,8 @@ alldevices = [evdev.InputDevice(path) for path in evdev.list_devices()]
 for device in alldevices:
     print(device.path, device.name, device.phys)
 
+EVENT_FMT = 'llHHi'
+EVENT_SIZE = struct.calcsize(EVENT_FMT)
 
 async def pygame_main():
     parser = argparse.ArgumentParser()
