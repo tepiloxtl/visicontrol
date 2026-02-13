@@ -214,6 +214,7 @@ alldevices = [evdev.InputDevice(path) for path in evdev.list_devices()]
 for device in alldevices:
     print(device.path, device.name, device.phys)
 
+# This I think is supposed to work on all 64bit systems, and maybe some 32bit ones too
 EVENT_FMT = 'llHHi'
 EVENT_SIZE = struct.calcsize(EVENT_FMT)
 
