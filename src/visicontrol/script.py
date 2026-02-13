@@ -143,7 +143,7 @@ async def print_events(type, name, device, queue):
             # device.read() gets everything currently in the buffer
             for event in device.read():
                 if event.type == evdev.ecodes.EV_SYN and event.code == evdev.ecodes.SYN_DROPPED:
-                    print(f"⚠ {name} BUFFER OVERFLOW!")
+                    print(f"{name} BUFFER OVERFLOW!")
                     continue
                 put_nowait(Event(name, type, event))
                 
